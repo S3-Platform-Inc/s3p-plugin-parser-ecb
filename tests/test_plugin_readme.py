@@ -10,7 +10,7 @@ class TestPluginREADME:
 
     @pytest.fixture(scope="class", autouse=True)
     def readme_content(self) -> str:
-        with open(Path(__file__).parent.parent / 'readme.md', 'r') as file:
+        with open(Path(__file__).parent.parent / 'readme.md', 'r', encoding='utf-8') as file:
             readme_content = file.read()
         return readme_content
 
