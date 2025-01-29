@@ -9,6 +9,7 @@ readme = "readme.md"
 python = "^3.11"
 s3p-sdk = "0.2.10"
 python-dateutil = "^2.9.0.post0"
+beautifulsoup4 = "^4.12.3"
 
 
 [tool.poetry.group.test.dependencies]
