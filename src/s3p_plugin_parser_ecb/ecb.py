@@ -86,7 +86,10 @@ class ECB(S3PParserBase):
 
                     article = self._driver.find_element(By.TAG_NAME, 'main')
                     title = article.find_element(By.XPATH, ".//div[@class='title']//h1").text
-                    category = article.find_element(By.XPATH, ".//div[@class='title']//ul/li").text
+                    try:
+                        category = article.find_element(By.XPATH, ".//div[@class='title']//ul/li").text
+                    except:
+                        category = None
                     pub_date = dateutil.parser.parse(
                         article.find_element(By.CLASS_NAME, 'ecb-publicationDate').text)
                     text = article.find_element(By.CLASS_NAME, 'section').text
