@@ -76,14 +76,11 @@ class ECB(S3PParserBase):
                 except:
                     pass
 
-            # web_links = [doc_link.get_attribute('href') for doc_link in doc_links]
-            # doc_links = self._driver.find_elements(By.XPATH, "//dd//div[@class='title']/a")
             for web_link in web_links:
 
                 if web_link.endswith('html'):
                     try:
-                        # self._driver.execute_script("window.open('');")
-                        # self._driver.switch_to.window(self._driver.window_handles[1])
+
                         url = self.DOMAIN+web_link
                         self._driver.get(url)
                         self.logger.debug('Entered on web page ' + url)
@@ -114,8 +111,6 @@ class ECB(S3PParserBase):
                             loaded=None,
                         )
 
-                        # self._driver.close()
-                        # self._driver.switch_to.window(self._driver.window_handles[0])
                     except Exception as e:
                         self.logger.error(e)
                         continue
