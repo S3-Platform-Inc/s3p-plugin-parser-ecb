@@ -19,7 +19,7 @@ class ECB(S3PParserBase):
 
     HOST = 'https://www.ecb.europa.eu/pub/pubbydate/html/index.en.html'
     YEARS = [2025, 2024]
-    DOMAIN = 'https://www.ecb.europa.eu/'
+    DOMAIN = 'https://www.ecb.europa.eu'
 
     def __init__(self, refer: S3PRefer, plugin: S3PPlugin, restrictions: S3PPluginRestrictions, web_driver: WebDriver):
         super().__init__(refer, plugin, restrictions)
@@ -31,7 +31,7 @@ class ECB(S3PParserBase):
     def _parse(self) -> None:
 
         self._driver.get(self.HOST)
-        time.sleep(1)
+        time.sleep(5)
 
         try:
             self._driver.find_elements(By.XPATH, "//a[contains(text(),'I understand and I accept')]")[0].click()
@@ -44,82 +44,79 @@ class ECB(S3PParserBase):
 
         # Теперь на сайте один контейнер со всеми публикациями
         dl_wrapper = self._driver.find_element(By.CLASS_NAME, 'dl-wrapper')
-        sections = dl_wrapper.find_elements(By.XPATH, '//*[@id="main-wrapper"]/main/div[2]/div[3]/div[2]/div[2]/dl')
 
         height_dl_wrapper = 0
-        for section in sections:
 
-            while True:
-                # Прокрутка страницы до конца
-                try:
+        while True:
+            # Прокрутка страницы до конца
+            try:
 
-                    self._driver.execute_script("arguments[0].scrollIntoView();", lazy_load)
-                    time.sleep(0.1)
-                    # Проверка. Если появятся новые записи, то высота контента изменится
-                    # ! Можно оценивать количество элементов.
-                    if dl_wrapper.size['height'] > height_dl_wrapper:
-                        height_dl_wrapper = dl_wrapper.size['height']
-                        time.sleep(1)
-                    else:
-                        break
-                except Exception as e:
+                self._driver.execute_script("arguments[0].scrollIntoView();", lazy_load)
+                time.sleep(0.1)
+                # Проверка. Если появятся новые записи, то высота контента изменится
+                # ! Можно оценивать количество элементов.
+                if dl_wrapper.size['height'] > height_dl_wrapper:
+                    height_dl_wrapper = dl_wrapper.size['height']
+                    time.sleep(1)
+                else:
                     break
+            except Exception as e:
+                break
 
-            soup = BeautifulSoup(self._driver.page_source, 'html.parser')
-            els = soup.find('div', class_='sort-wrapper').find_all("div", class_="title")
+        soup = BeautifulSoup(self._driver.page_source, 'html.parser')
+        els = soup.find('div', class_='sort-wrapper').find('dl').find_all('dd')
 
-            web_links = []
+        web_links = []
 
-            for el in els:
+        for el in els:
+            try:
+                web_links.append(el.find('div').find('div', class_='title').find('a')['href'])
+            except:
+                pass
+
+        for web_link in web_links:
+
+            if web_link.endswith('html'):
                 try:
-                    web_links.append(el.find('a')['href'])
-                except:
-                    pass
 
-            for web_link in web_links:
+                    url = self.DOMAIN+web_link
+                    self._driver.get(url)
+                    self.logger.debug('Entered on web page ' + url)
+                    time.sleep(2)
 
-                if web_link.endswith('html'):
+                    article = self._driver.find_element(By.TAG_NAME, 'main')
+                    title = article.find_element(By.XPATH, ".//div[@class='title']//h1").text
+                    category = article.find_element(By.XPATH, ".//div[@class='title']//ul/li").text
+                    pub_date = dateutil.parser.parse(
+                        article.find_element(By.CLASS_NAME, 'ecb-publicationDate').text)
+                    text = article.find_element(By.CLASS_NAME, 'section').text
+                    abstract = article.find_element(By.CLASS_NAME, 'section').find_elements(By.TAG_NAME, 'ul')[
+                        0].text
                     try:
+                        text += '\n\n' + self._driver.find_element(By.CLASS_NAME, 'footnotes').text
+                    except:
+                        pass
 
-                        url = self.DOMAIN+web_link
-                        self._driver.get(url)
-                        self.logger.debug('Entered on web page ' + url)
-                        time.sleep(2)
+                    doc = S3PDocument(
+                        id=None,
+                        title=title,
+                        abstract=abstract,
+                        text=text,
+                        link=web_link,
+                        storage=None,
+                        other={'category': category},
+                        published=pub_date,
+                        loaded=None,
+                    )
 
-                        article = self._driver.find_element(By.TAG_NAME, 'main')
-                        title = article.find_element(By.XPATH, ".//div[@class='title']//h1").text
-                        category = article.find_element(By.XPATH, ".//div[@class='title']//ul/li").text
-                        pub_date = dateutil.parser.parse(
-                            article.find_element(By.CLASS_NAME, 'ecb-publicationDate').text)
-                        text = article.find_element(By.CLASS_NAME, 'section').text
-                        abstract = article.find_element(By.CLASS_NAME, 'section').find_elements(By.TAG_NAME, 'ul')[
-                            0].text
-                        try:
-                            text += '\n\n' + self._driver.find_element(By.CLASS_NAME, 'footnotes').text
-                        except:
-                            pass
+                except Exception as e:
+                    self.logger.error(e)
+                    continue
+                else:
+                    self._find(doc)
 
-                        doc = S3PDocument(
-                            id=None,
-                            title=title,
-                            abstract=abstract,
-                            text=text,
-                            link=web_link,
-                            storage=None,
-                            other={'category': category},
-                            published=pub_date,
-                            loaded=None,
-                        )
-
-                    except Exception as e:
-                        self.logger.error(e)
-                        continue
-                    else:
-                        self._find(doc)
-
-            else:
-                self.logger.debug('Section parse error')
-            break
+        else:
+            self.logger.debug('Section parse error')
 
     def _select_year(self, xpath, value):
         """
