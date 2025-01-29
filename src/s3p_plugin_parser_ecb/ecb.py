@@ -2,12 +2,14 @@ import datetime
 import time
 
 from s3p_sdk.plugin.payloads.parsers import S3PParserBase
+from s3p_sdk.exceptions.parser import S3PPluginParserOutOfRestrictionException, S3PPluginParserFinish
 from s3p_sdk.types import S3PRefer, S3PDocument, S3PPlugin, S3PPluginRestrictions
 from selenium.common import NoSuchElementException
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
+from s3p_sdk.types.plugin_restrictions import FROM_DATE
 import dateutil.parser
 from bs4 import BeautifulSoup
 
@@ -93,8 +95,11 @@ class ECB(S3PParserBase):
                     pub_date = dateutil.parser.parse(
                         article.find_element(By.CLASS_NAME, 'ecb-publicationDate').text)
                     text = article.find_element(By.CLASS_NAME, 'section').text
-                    abstract = article.find_element(By.CLASS_NAME, 'section').find_elements(By.TAG_NAME, 'ul')[
+                    try:
+                        abstract = article.find_element(By.CLASS_NAME, 'section').find_elements(By.TAG_NAME, 'ul')[
                         0].text
+                    except:
+                        abstract=None
                     try:
                         text += '\n\n' + self._driver.find_element(By.CLASS_NAME, 'footnotes').text
                     except:
@@ -111,12 +116,18 @@ class ECB(S3PParserBase):
                         published=pub_date,
                         loaded=None,
                     )
-
                 except Exception as e:
                     self.logger.error(e)
                     continue
                 else:
-                    self._find(doc)
+                    try:
+                        self._find(doc)
+                    except S3PPluginParserOutOfRestrictionException as e:
+                        if e.restriction == FROM_DATE:
+                            self.logger.debug(f'Document is out of date range `{self._restriction.from_date}`')
+                            raise S3PPluginParserFinish(self._plugin,
+                                                        f'Document is out of date range `{self._restriction.from_date}`',
+                                                        e)
 
         else:
             self.logger.debug('Section parse error')
