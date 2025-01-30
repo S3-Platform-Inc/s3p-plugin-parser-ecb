@@ -16,7 +16,7 @@ from s3p_sdk.module import (
 
 config = PluginConfig(
     plugin=CoreConfig(
-        reference='ECB',         # уникальное имя источника
+        reference='ecb',         # уникальное имя источника
         type=SOURCE,                            # Тип источника (SOURCE, ML, PIPELINE)
         files=['ecb.py', ],        # Список файлов, которые будут использоваться в плагине (эти файлы будут сохраняться в платформе)
         is_localstorage=False,
@@ -35,9 +35,8 @@ config = PluginConfig(
     ),
     middleware=MiddlewareConfig(
         modules=[
-            modules.TimezoneSafeControlConfig(order=1, is_critical=True),
-            modules.FilterOnlyNewDocumentWithDB(order=2, is_critical=True),
-            modules.SaveDocument(order=3, is_critical=True),
+            modules.TimezoneSafeControlConfig(1, True),
+            modules.SaveOnlyNewDocuments(2, True)
         ],
         bus=None,
     ),
@@ -47,7 +46,8 @@ config = PluginConfig(
         entry=payload.entry.EntryConfig(
             method='content',
             params=[
-                payload.entry.ModuleParamConfig(key='web_driver', module_name=WebDriver, bus=True),
+                payload.entry.ModuleParamConfig('web_driver', WebDriver, True),
+                payload.entry.ConstParamConfig('use_rss', 1)
             ] # Подробнее можно почитать [тут](./readme.md#пример-конфигурации-параметров-запуска-плагина
         )
     )

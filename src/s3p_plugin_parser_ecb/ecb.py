@@ -1,10 +1,11 @@
 import datetime
 import time
+from typing import Iterator
 
+import feedparser
 from s3p_sdk.plugin.payloads.parsers import S3PParserBase
 from s3p_sdk.exceptions.parser import S3PPluginParserOutOfRestrictionException, S3PPluginParserFinish
 from s3p_sdk.types import S3PRefer, S3PDocument, S3PPlugin, S3PPluginRestrictions
-from selenium.common import NoSuchElementException
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
@@ -20,18 +21,81 @@ class ECB(S3PParserBase):
     """
 
     HOST = 'https://www.ecb.europa.eu/pub/pubbydate/html/index.en.html'
+    RSS = "https://www.ecb.europa.eu/rss/pub.html"
     YEARS = [2025, 2024]
     DOMAIN = 'https://www.ecb.europa.eu'
 
-    def __init__(self, refer: S3PRefer, plugin: S3PPlugin, restrictions: S3PPluginRestrictions, web_driver: WebDriver):
+    def __init__(self, refer: S3PRefer, plugin: S3PPlugin, restrictions: S3PPluginRestrictions, web_driver: WebDriver, use_rss: bool = 0):
         super().__init__(refer, plugin, restrictions)
 
         # Тут должны быть инициализированы свойства, характерные для этого парсера. Например: WebDriver
+        self._use_rss = bool(use_rss)  # Этот флаг будет сигнализировать о способе получения ссылок на публикации
+
         self._driver = web_driver
         self._wait = WebDriverWait(self._driver, timeout=20)
 
     def _parse(self) -> None:
+        # Добавил новую реализацию через RSS
+        if self._use_rss:
+            self._new_parse()
+        else:
+            self._old_parser()
 
+    def _new_parse(self) -> None:
+
+        for unfilled_doc in self._latest_pubs():
+            if unfilled_doc.link.endswith('html'):
+                # Если публикация - это web-страница, то мы заходим на нее и собираем все данные
+                try:
+                    self._driver.get(unfilled_doc.link)
+                    self.logger.debug('Entered on web page ' + unfilled_doc.link)
+                    time.sleep(2)
+
+                    article = self._driver.find_element(By.TAG_NAME, 'main')
+
+                    try:
+                        category = article.find_element(By.XPATH, ".//div[@class='title']//ul/li").text
+
+                        # Тут мы создаем словарь потому что до этого его не создавали
+                        unfilled_doc.other = {
+                            'category': category,
+                        }
+                    except:
+                        category = None
+
+                    if unfilled_doc.abstract is None:
+                        try:
+                            abstract = article.find_element(
+                                By.CLASS_NAME, 'section'
+                            ).find_elements(
+                                By.TAG_NAME, 'ul'
+                            )[0].text
+                            unfilled_doc.abstract = abstract
+                        except:
+                            abstract=None
+
+                    text = article.find_element(By.CLASS_NAME, 'section').text
+                    try:
+                        text += '\n\n' + self._driver.find_element(By.CLASS_NAME, 'footnotes').text
+                    except:
+                        pass
+
+                    unfilled_doc.text = text
+                except Exception as e:
+                    self.logger.error(e)
+                    continue
+
+            # В случаях, когда публикация является документом, пока, мы будем их сохранять (текст документов выгрузим чуть позже)
+            try:
+                self._find(unfilled_doc)
+            except S3PPluginParserOutOfRestrictionException as e:
+                if e.restriction == FROM_DATE:
+                    self.logger.debug(f'Document is out of date range `{self._restriction.from_date}`')
+                    raise S3PPluginParserFinish(self._plugin,
+                                                f'Document is out of date range `{self._restriction.from_date}`',
+                                                e)
+
+    def _old_parser(self) -> None:
         self._driver.get(self.HOST)
         time.sleep(5)
 
@@ -113,7 +177,7 @@ class ECB(S3PParserBase):
                         link=web_link,
                         storage=None,
                         other={'category': category},
-                        published=pub_date,
+                        published=pub_date.replace(tzinfo=None),
                         loaded=None,
                     )
                 except Exception as e:
@@ -131,6 +195,25 @@ class ECB(S3PParserBase):
 
         else:
             self.logger.debug('Section parse error')
+
+    def _latest_pubs(self) -> Iterator[S3PDocument]:
+        # Parse the ECB RSS feed
+        ecb_feed = feedparser.parse(self.RSS)
+
+        # Iterate through feed entries
+        for entry in ecb_feed.entries:
+            parsed_date = dateutil.parser.parse(entry.published)
+            yield S3PDocument(
+                None,
+                entry.title,
+                entry.summary if 'summary' in entry else None,
+                None,
+                entry.link,
+                None,
+                None,
+                parsed_date.replace(tzinfo=None),
+                None,
+            )
 
     def _select_year(self, xpath, value):
         """
