@@ -64,7 +64,8 @@ class TestPayloadRun:
             refer=refer,
             plugin=_plugin,
             restrictions=restrictions,
-            web_driver=driver
+            web_driver=driver,
+            use_rss=1
         )
         return _payload.content()
 
@@ -82,7 +83,7 @@ class TestPayloadRun:
             3. Каждый полученный документ должен обязательно содержать 3 ключевых поля (title, link, published)
 
         """
-        max_docs = 4
+        max_docs = 5
         docs = self.run_payload(fix_payload, fix_s3pRefer, fix_s3pPlugin, S3PPluginRestrictions(max_docs, None, None, None), chrome_driver)
 
         # 1. Количество материалов должно быть не меньше параметра максимального числа материалов.
@@ -100,7 +101,7 @@ class TestPayloadRun:
 
     @pytest.mark.timeout(10000)
     def test_date_restrictions(self, chrome_driver, fix_s3pRefer, fix_payload, fix_s3pPlugin):
-        _boundary_date = datetime.datetime.now() - datetime.timedelta(days=2)
+        _boundary_date = datetime.datetime.now() - datetime.timedelta(days=1)
         docs = self.run_payload(fix_payload, fix_s3pRefer, fix_s3pPlugin, S3PPluginRestrictions(None, None, _boundary_date, None), chrome_driver)
 
         for doc in docs:

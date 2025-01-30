@@ -1,4 +1,4 @@
-# s3p-plugin-parser-ecb
+# ECB (s3p-plugin-parser-ecb)
 
 [![Test Plugin](https://github.com/S3-Platform-Inc/s3p-plugin-parser-ecb/actions/workflows/plugin_test.yml/badge.svg)](https://github.com/S3-Platform-Inc/s3p-plugin-parser-ecb/actions/workflows/plugin_test.yml)
 [![Release plugin](https://github.com/S3-Platform-Inc/s3p-plugin-parser-ecb/actions/workflows/build-release.yml/badge.svg)](https://github.com/S3-Platform-Inc/s3p-plugin-parser-ecb/actions/workflows/build-release.yml)
